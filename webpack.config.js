@@ -12,7 +12,7 @@ var plugins = [
     'PRODUCTION': isProduction
   }),
   new HtmlPlugin({
-    title: 'js13k-boilerplate'
+    title: 'Johnson\'s cat'
   })
 ];
 
