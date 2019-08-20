@@ -214,6 +214,8 @@ function drawPlayer() {
         // booster right
         drawCircle(player.width/3, 0, player.width/8, white);
         ctx.fillRect(player.width/4, 0, player.width/4, player.height/2);
+        // window
+        drawCircle(0, -player.height/2.5, player.width/8, purple);
     }
     
     ctx.restore();
