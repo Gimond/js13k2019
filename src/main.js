@@ -5,6 +5,7 @@ var key = require('./key');
 const screenMaxSpeed = 200;
 const white = '#fff';
 const black = '#000';
+const orange = '#ff9800';
 const purple = '#8462AD';
 const darkPurple = '#7a59a3';
 const darkerPurple = '#593d7b';
@@ -26,24 +27,14 @@ var screenVelocity = 0; // 0 to 1
 var screenSpeed = 0;
 var timeElapsed = 0;
 var timeFlowing = false;
+var destruction = 0; // 0 to 100, 100 meaning taking control of the rocket
 var obstacles = [];
+var particles = [];
 
-// demo entity
-var rocket = {
-    x: 252,
-    y: 560,
-    width: 24,
-    height: 50,
+// player
+var player = {
     color: white
 };
-var cat = {
-    x: rand.int(canvas.width),
-    y: rand.int(canvas.height),
-    width: 50,
-    height: 50,
-    color: white
-};
-var player = {};
 
 // game loop
 loop.start(function (dt) {
@@ -58,50 +49,106 @@ loop.start(function (dt) {
             timeFlowing = false;
             screenY = 0;
             screenVelocity = 0;
-            player = rocket;
+            player.sprite = 'rocket';
             player.speedx = 0;
             player.speedy = 0;
-            drawTitle(screenY);
+            player.x = 240;
+            player.y = 420;
+            player.width = 24;
+            player.height = 50;
+            updatePlayer(dt);
+
             if (key.isDown(key.SPACE)) {
                 state = "liftoff";
             }
+
+            drawTitle();
+            drawPlayer();
+            drawGround();
             break;
         case "liftoff":
             timeFlowing = true;
             // screenY
             if (screenVelocity < 1) {
-                screenVelocity = screenVelocity + dt / 10;
+                screenVelocity = screenVelocity + dt / 4;
             }
             if (screenSpeed < screenMaxSpeed) {
                 screenSpeed = screenVelocity * screenMaxSpeed;
+            } else {
+                // mash keys to take control
+                state = "taking_control";
             }
             screenY = screenY + screenSpeed * dt;
-            if (screenY <= 640) {
-                drawTitle(screenY);
+            
+            updatePlayer(dt);
+            
+            particlesEmitter({
+                maxSize: 8,
+                sizeVariation: 0.5,
+                sizeChangeOnTime: 1.01,
+                gravity: 0,
+                density: 30,
+                angle: {min:80, max:100},
+                maxLife: Math.random()*10+40,
+                velocity: 150 * dt,
+                startingX: player.x+player.width/2,
+                startingY: player.y+player.height-10,
+                color: orange
+            });
+
+            if (screenY < 640) {
+                particlesEmitter({
+                    maxSize: 8,
+                    sizeVariation: 0.5,
+                    sizeChangeOnTime: 1.01,
+                    gravity: 0,
+                    density: 50,
+                    angle: {min:-15, max:195},
+                    maxLife: Math.random()*10+40,
+                    velocity: 150 * dt,
+                    startingX: player.x+player.width/2,
+                    startingY: screenY + 470 + screenY / 3,
+                    color: orange
+                });
+                drawTitle();
             }
+    
+            drawParticles();
+            drawPlayer();
+            drawGround();
+            // particlesEmitter({
+            //     ctx: ctx,
+            //     canvas: canvas,
+            //     particleSize: 5,
+            //     angle: {min:0, max:360},
+            //     startingX: 20,
+            //     startingY: 20,
+            //     maxLife: 10,
+            // });
+            break;
+        case "taking_control":
             player.speedx = 150;
             player.speedy = 75;
+
+            screenY = screenY + screenSpeed * dt;
+            
+            updatePlayer(dt);
+            
             particlesEmitter({
-                ctx: ctx,
-                canvas: canvas,
-                maxSize: 10,
-                sizeVariation: 0.8,
+                maxSize: 8,
+                sizeVariation: 0.5,
+                sizeChangeOnTime: 1.01,
                 gravity: 0,
-                density: 50,
-                angle: {min:80, max:110},
-                maxLife: 10,
+                density: 30,
+                angle: {min:80, max:100},
+                maxLife: Math.random()*10+40,
+                velocity: 150 * dt,
                 startingX: player.x+player.width/2,
-                startingY: player.y+player.height-10
+                startingY: player.y+player.height-10,
+                color: orange
             });
-            particlesEmitter({
-                ctx: ctx,
-                canvas: canvas,
-                particleSize: 5,
-                angle: {min:0, max:360},
-                startingX: 20,
-                startingY: 20,
-                maxLife: 10,
-            });
+            drawParticles();
+            drawPlayer();
             break;
         case "explode":
             break;
@@ -114,13 +161,20 @@ loop.start(function (dt) {
             break;
     }
     drawUi();
+});
 
+function updatePlayer(dt) {
     // update player
-    if (key.isDown(key.LEFT)) {
-        player.x = player.x - (player.speedx * dt);
-    }
-    if (key.isDown(key.RIGHT)) {
-        player.x = player.x + (player.speedx * dt);
+    player.rotate = 0;
+    if (player.speedx != 0) {
+        if (key.isDown(key.LEFT)) {
+            player.x = player.x - (player.speedx * dt);
+            player.rotate = -15;
+        }
+        if (key.isDown(key.RIGHT)) {
+            player.x = player.x + (player.speedx * dt);
+            player.rotate = 15;
+        }
     }
     if (key.isDown(key.UP)) {
         player.y = player.y - (player.speedy * dt);
@@ -130,46 +184,102 @@ loop.start(function (dt) {
     }
 
     // check bounds collisions
-    if (player.x < 0) {
-        player.x = canvas.width;
-    } else if (player.x > canvas.width) {
-        player.x = 0;
+    if (player.x < 5) {
+        player.x = 5;
+    } else if (player.x > canvas.width-player.width-5) {
+        player.x = canvas.width-player.width-5;
     }
-    if (player.y < 0) {
-        player.y = canvas.height;
-    } else if (player.y > canvas.height) {
-        player.y = 0;
+    if (player.y < 100) {
+        player.y = 100;
+    } else if (player.y > canvas.height-player.height-35) {
+        player.y = canvas.height-player.height-35;
     }
+}
 
-    // draw player
+function drawPlayer() {
+    ctx.save();
+    ctx.beginPath();
+
+    ctx.translate(player.x+player.width/2, player.y+player.height/2);
+    ctx.rotate(player.rotate * Math.PI / 180);
     ctx.fillStyle = player.color;
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-});
 
-function drawTitle(y) {
+    if (player.sprite == "rocket") {
+        // body
+        drawCircle(0, -player.height/2, player.width/4, white);
+        ctx.fillRect(-player.width/4, -player.height/2, player.width/2, player.height - 3);
+        // booster left
+        drawCircle(-player.width/3, 0, player.width/8, white);
+        ctx.fillRect(-player.width/2, 0, player.width/4, player.height/2);
+        // booster right
+        drawCircle(player.width/3, 0, player.width/8, white);
+        ctx.fillRect(player.width/4, 0, player.width/4, player.height/2);
+    }
+    
+    ctx.restore();
+}
+
+function drawTitle() {
     // text
     canvas.style.letterSpacing = '-7px';
     ctx.fillStyle = darkPurple;
     ctx.font = 'bold 88px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText("JOHNSON'S", canvas.width / 2 - 2, y + 440);
+    ctx.fillText("JOHNSON'S", canvas.width / 2 - 2, screenY + 300);
     ctx.font = 'bold 240px sans-serif';
-    ctx.fillText("CAT", canvas.width / 2 - 7, y + 625);
+    ctx.fillText("CAT", canvas.width / 2 - 7, screenY + 485);
+}
 
-    // ground
+function drawGround() {
     ctx.fillStyle = darkerPurple;
-    ctx.fillRect(0, y + 610, canvas.width, 30);
+    ctx.fillRect(0, screenY + 470, 480, 170);
+    ctx.fillRect(225, screenY + 425, 10, 45);
 }
 
 function drawUi() {
-    ctx.fillStyle = darkerPurple;
-    ctx.fillRect(canvas.width - 100, canvas.height - 30, 100, 30);
+    ctx.fillStyle = black;
+    ctx.fillRect(0, canvas.height - 30, 480, 30);
 
     canvas.style.letterSpacing = '0px';
     ctx.fillStyle = white;
     ctx.font = 'bold 20px sans-serif';
+
     ctx.textAlign = 'right';
     ctx.fillText(Math.floor(screenY) + ' m', canvas.width - 10, canvas.height - 8);
+
+    ctx.textAlign = 'left';
+    ctx.fillText(Math.floor(timeElapsed) + ' s', 10, canvas.height - 8);
+}
+
+function drawParticles() {
+    for (var index in particles) {
+        particles[index].x += particles[index].vx;
+        particles[index].y += particles[index].vy;
+
+        // Adjust for gravity
+        particles[index].vy += particles[index].gravity;
+
+        // Age the particle
+        particles[index].life++;
+
+        particles[index].size = particles[index].size*particles[index].sizeChangeOnTime;
+
+        // Create the shapes
+        drawCircle(particles[index].x, particles[index].y, particles[index].size, particles[index].color);
+
+        // If Particle is old, it goes in the chamber for renewal
+        if (particles[index].life >= particles[index].maxLife) {
+            delete particles[index];
+        }
+    }
+}
+
+function drawCircle(x, y, radius, color) {
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.arc(x, y, radius, 0, Math.PI * 2, true);
+    ctx.closePath();
+    ctx.fill();
 }
 
 function easeInCubic(t) {
@@ -177,23 +287,20 @@ function easeInCubic(t) {
 }
 
 function particlesEmitter(settings) {
-    if (this.particles) {
+    var settings_default = {
+        density: 20,
+        maxSize: 10,
+        sizeVariation: 0.3,
+        sizeChangeOnTime: 1,
+        gravity: 0.5,
+        maxLife: 10,
+        velocity: 5,
+        angle: {min: 0, max: 360}
+    };
+    // merge settings with default
+    this.settings = Object.assign(settings_default, settings);
+    if (this.emit) {
         this.emit();
-    } else {
-        this.particles = [];
-        var settings_default = {
-            density: 20,
-            maxSize: 10,
-            sizeVariation: 0.3,
-            startingX: settings.canvas.width / 2,
-            startingY: settings.canvas.height / 4,
-            gravity: 0.5,
-            maxLife: 50,
-            velocity: 5,
-            angle: {min: 45, max: 135}
-        };
-        // merge settings with default
-        this.settings = Object.assign(settings_default, settings);
     }
 
     this.emit = function() {
@@ -204,51 +311,18 @@ function particlesEmitter(settings) {
                 // corresponding to an chance of 1 per second,
                 // per "density" value
                 var angle = this.toRadians(this.settings.angle.min + Math.random() * (this.settings.angle.max - this.settings.angle.min));
-                this.particles.push({
+                var particleSettings = {
                     // Establish starting positions and velocities
                     size: this.settings.maxSize - Math.random() * (this.settings.maxSize * this.settings.sizeVariation),
                     x: this.settings.startingX,
                     y: this.settings.startingY,
-
                     vx: this.settings.velocity * Math.cos(angle),
                     vy: this.settings.velocity * Math.sin(angle),
-
-                    // vx = Math.random() * (this.settings.vx.max - this.settings.vx.min) + this.settings.vx.min;
-                    // vy = Math.random() * (this.settings.vy.max - this.settings.vy.min) + this.settings.vy.min;
-
                     life: 0,
-                    maxLife: Math.random() * this.settings.maxLife / 2 + this.settings.maxLife / 2,
-                });
+                };
+                particles.push(Object.assign(this.settings, particleSettings));
             }
         }
-
-        for (var j in this.particles) {
-            this.drawParticle(j);
-        }
-    };
-
-    this.drawParticle = function(index) {
-        this.particles[index].x += this.particles[index].vx;
-        this.particles[index].y += this.particles[index].vy;
-
-        // Adjust for gravity
-        this.particles[index].vy += this.settings.gravity;
-
-        // Age the particle
-        this.particles[index].life++;
-
-        // If Particle is old, it goes in the chamber for renewal
-        if (this.particles[index].life >= this.particles[index].maxLife) {
-            delete particles[this.particles[index].id];
-        }
-
-        // Create the shapes
-        this.settings.ctx.beginPath();
-        this.settings.ctx.fillStyle = "#ffffff";
-        // Draws a circle of radius 20 at the coordinates 100,100 on the this.settings.canvas
-        this.settings.ctx.arc(this.particles[index].x, this.particles[index].y, this.particles[index].size, 0, Math.PI * 2, true);
-        this.settings.ctx.closePath();
-        this.settings.ctx.fill();
     };
 
     this.toRadians = function(angle) {
