@@ -5,10 +5,10 @@
   "main": "src/main.js",
   "scripts": {
     "clean": "rimraf build/; mkdirp build",
-    "build": "SET NODE_ENV=production webpack --config webpack.config --progress --colors",
+    "build": "webpack --config webpack.config --progress --colors",
     "watch": "webpack --config webpack.config --colors --watch",
     "test": "echo \"Error: no test specified\" && exit 0",
-    "zip": "cd build; zip -r ../build.zip .; cd ..; wc -c build.zip",
+    "zip": "rm build.zip & cd build & \"C:\\Program Files\\7-Zip\\7z.exe\" a ../build.zip",
     "lint": "eslint ./src --fix",
     "package": "npm run clean && npm run build && npm run zip",
     "prepush": "npm run lint"
