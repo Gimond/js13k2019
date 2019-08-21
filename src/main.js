@@ -37,7 +37,9 @@ var rocket = {
 var waveAmplitudeModifier;
 var waveAmplitude = 2;
 var clouds = [
-    {x: 100, y: 100, w: 200, h: 100}
+    {x: 50, y: 0, w: 100, h: 100},
+    {x: 200, y: 40, w: 250, h: 100},
+    {x: 100, y: 140, w: 200, h: 100},
 ];
 
 // player
@@ -273,7 +275,7 @@ function drawGround(dt) {
     ctx.fillRect(base.x, base.y, base.w, base.h);
     ctx.fillStyle = darkPurple;
     ctx.fillRect(base.x + 5, base.y + 5, 5, 5);
-    ctx.fillRect(base.x + 15, base.y + 5, 5, 5);
+    ctx.fillRect(base.x + 15, base.y + 5, 5, 5); 
     ctx.fillRect(base.x + 35, base.y + 5, 5, 5);
     ctx.fillRect(base.x + 15, base.y + 15, 5, 5);
     ctx.fillRect(base.x + 15, base.y + 15, 5, 5);
@@ -348,36 +350,39 @@ function drawHeart(x, y) {
 
 function drawClouds() {
     for (var index in clouds) {
-        ctx.fillStyle = black;
-        ctx.fillRect(clouds[index].x, clouds[index].y, clouds[index].w, clouds[index].h);
+        // ctx.fillStyle = black;
+        // ctx.fillRect(clouds[index].x, clouds[index].y, clouds[index].w, clouds[index].h);
         ctx.save();
         ctx.beginPath();
 
-        ctx.translate(clouds[index].x, clouds[index].y);
+        ctx.translate(clouds[index].x, screenY + clouds[index].y);
 
         if (!clouds[index].hasOwnProperty('circles')) {
             clouds[index].circles = [];
-            var circlesNb = Math.floor(clouds[index].w / 50);
-            // var circlesNb = 1;
+            var circlesNb = Math.ceil(clouds[index].w / 40)+1;
             var cloudRadius;
-            var cloudX = 10;
-            var cloudY = 0;
+            var cloudX = 0;
+            var centerFactor = 0;
             for (var i = 1; i <= circlesNb; i++) {
-                cloudRadius = rand.range(20, 35);
+                centerFactor = Math.abs(1-(Math.abs(clouds[index].w/2 - cloudX)/(clouds[index].w/2)));
+                console.log(centerFactor);
+                cloudRadius = rand.range(10,15)+30*centerFactor;
                 clouds[index].circles.push({
                     x: cloudX + cloudRadius,
                     y: clouds[index].h - cloudRadius,
                     radius: cloudRadius
                 });
-                cloudX = cloudX + clouds[index].w/circlesNb - 20;
+                cloudX = cloudX + cloudRadius*1.5;
             }
+            console.log("---");
         }
         for (var ic in clouds[index].circles) {
             drawCircle(clouds[index].circles[ic].x, clouds[index].circles[ic].y, clouds[index].circles[ic].radius, lightPurple);
         }
-        ctx.moveTo(0, clouds[index].h);
-        ctx.lineTo(clouds[index].w / 2, clouds[index].h / 2);
-        ctx.lineTo(clouds[index].w, clouds[index].h);
+        var lastCircleRadius = clouds[index].circles[clouds[index].circles.length-1].radius;
+        ctx.moveTo(-40, clouds[index].h);
+        ctx.lineTo(clouds[index].w / 2, clouds[index].h / 1.5);
+        ctx.lineTo(clouds[index].w+lastCircleRadius*2+40, clouds[index].h);
         ctx.fill();
 
         ctx.restore();
