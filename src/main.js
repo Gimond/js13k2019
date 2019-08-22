@@ -10,9 +10,12 @@ const lightPurple = '#a285c6';
 const purple = '#8462AD';
 const darkPurple = '#7a59a3';
 const darkerPurple = '#593d7b';
+const deepPurple = '#442866';
 
 const minObstacleSpace = 100;
 const maxObstacleSpace = 300;
+const minCloudSpace = 100;
+const maxCloudSpace = 300;
 
 var canvas = document.createElement('canvas');
 canvas.width = 480;
@@ -28,23 +31,46 @@ var screenVelocity = 0; // 0 to 1
 var screenSpeed = 0;
 var timeElapsed = 0;
 var timeFlowing = false;
+var waveAmplitudeModifier;
+var waveAmplitude = 2;
+var drag = 1;
+
+// player
+var camera = {
+    pos: {x:0, y:0},
+    accel: {x:0, y:0},
+    target: {x:0, y:0},
+    drag: 0.3
+};
+var player = {
+    pos: {x:0, y:0},
+    accel: {x:0, y:0},
+    target: {x:0, y:0},
+    sprite: 'rocket',
+    rotate: 0,
+    drag: 0.93
+};
 var obstacles = [];
 var particles = [];
 var rocket = {
     possession: 0, // 0 to 100, 100 meaning taking control of the rocket
-    health: 3
+    health: 3,
+    explosionTimer: 0
 };
-var waveAmplitudeModifier;
-var waveAmplitude = 2;
-var clouds = [
-    {x: 50, y: 0, w: 100, h: 100},
-    {x: 200, y: 40, w: 250, h: 100},
-    {x: 100, y: 140, w: 200, h: 100},
-];
-
-// player
-var player = {
-    color: white
+var clouds = [];
+var explosions = [];
+var particlesSettings = {
+    rocket: {
+        sizeRange: {min: 3, max: 10},
+        gravity: 0,
+        density: 30,
+        angle: {min: 80, max: 100},
+        maxLife: rand.range(20, 30),
+        velocity: 150,
+        startingX: player.pos.x + player.width / 2,
+        startingY: player.pos.y + player.height - 10,
+        color: orange
+    }
 };
 
 // game loop
@@ -54,18 +80,28 @@ loop.start(function (dt) {
     if (timeFlowing) {
         timeElapsed += dt;
     }
+    if (key.isDown(key.ESC)) {
+        state = "title";
+    }
+
+    if (screenY < 5000) {
+        addClouds();
+    }
+    updateClouds(dt);
     drawClouds();
 
     switch (state) {
         case "title":
+            timeElapsed = 0;
             timeFlowing = false;
             screenY = 0;
             screenVelocity = 0;
             player.sprite = 'rocket';
-            player.speedx = 0;
-            player.speedy = 0;
-            player.x = 240;
-            player.y = 420;
+            player.accel.x = 0;
+            player.accel.y = 0;
+            player.pos.x = 240;
+            player.pos.y = 420;
+            player.target = player.pos;
             player.width = 24;
             player.height = 50;
             updatePlayer(dt);
@@ -88,23 +124,16 @@ loop.start(function (dt) {
                 screenSpeed = screenVelocity * screenMaxSpeed;
             } else {
                 // mash keys to take control
+                if (key.isDown(key.SPACE)) {
+                    state = "liftoff";
+                }
                 state = "taking_control";
             }
             screenY = screenY + screenSpeed * dt;
 
             updatePlayer(dt);
 
-            particlesEmitter({
-                sizeRange: {min: 3, max: 10},
-                gravity: 0,
-                density: 30,
-                angle: {min: 80, max: 100},
-                maxLife: rand.range(20, 30),
-                velocity: 150 * dt,
-                startingX: player.x + player.width / 2,
-                startingY: player.y + player.height - 10,
-                color: orange
-            });
+            particlesEmitter(particlesSettings.rocket, dt);
 
             if (screenY < 640) {
                 particlesEmitter({
@@ -113,8 +142,8 @@ loop.start(function (dt) {
                     density: 80,
                     angle: {min: -15, max: 195},
                     maxLife: rand.range(20, 30),
-                    velocity: 150 * dt,
-                    startingX: player.x + player.width / 2,
+                    velocity: 150,
+                    startingX: 240 + player.width / 2,
                     startingY: screenY + 470 + screenY / 3,
                     color: orange
                 });
@@ -138,8 +167,8 @@ loop.start(function (dt) {
             // });
             break;
         case "taking_control":
-            player.speedx = 150;
-            player.speedy = 75;
+            player.accel.x = 150;
+            player.accel.y = 75;
             rocket.show_health = true;
 
             screenY = screenY + screenSpeed * dt;
@@ -151,20 +180,21 @@ loop.start(function (dt) {
                 gravity: 0,
                 density: 30,
                 angle: {min: 80, max: 100},
-                maxLife: rand.range(40, 50),
-                velocity: 150 * dt,
-                startingX: player.x + player.width / 2,
-                startingY: player.y + player.height - 10,
+                maxLife: rand.range(20, 30),
+                velocity: 150,
+                startingX: player.pos.x + player.width / 2,
+                startingY: player.pos.y + player.height - 10,
                 color: orange
             });
             drawParticles();
             drawPlayer();
             break;
         case "explode":
+
             break;
         case "falling":
-            player.speedx = 150;
-            player.speedy = 75;
+            player.accel.x = 150;
+            player.accel.y = 75;
             break;
         case "fallen":
             timeFlowing = false;
@@ -173,44 +203,74 @@ loop.start(function (dt) {
     drawUi();
 });
 
+function addClouds() {
+    console.log(clouds);
+    if (clouds.length) {
+        // console.log(clouds);
+        var nextY = clouds.slice(-1)[0].y - rand.range(minCloudSpace, maxCloudSpace);
+    } else {
+        nextY = 100;
+    }
+    if (nextY + screenY > -200) {
+        clouds.push(
+            {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
+        );
+    }
+}
+
+function updateClouds(dt) {
+    for (var index in clouds) {
+        clouds[index].x += 5*dt;
+
+        if (clouds[index].x > 520 || screenY > clouds[index].y + 640) {
+            // delete clouds[index];
+            clouds.splice(index, 1);
+        }
+    }
+}
+
 function updatePlayer(dt) {
     // update player
     player.rotate = 0;
-    if (player.speedx != 0) {
+    if (player.accel.x != 0) {
         if (key.isDown(key.LEFT)) {
-            player.x = player.x - (player.speedx * dt);
+            player.target.x = player.pos.x - (player.accel.x * dt);
             player.rotate = -15;
         }
         if (key.isDown(key.RIGHT)) {
-            player.x = player.x + (player.speedx * dt);
+            player.target.x = player.pos.x + (player.accel.x * dt);
             player.rotate = 15;
         }
     }
     if (key.isDown(key.UP)) {
-        player.y = player.y - (player.speedy * dt);
+        player.target.y = player.pos.y - (player.accel.y * dt);
     }
     if (key.isDown(key.DOWN)) {
-        player.y = player.y + (player.speedy * dt);
+        player.target.y = player.pos.y + (player.accel.y * dt);
     }
 
     // check bounds collisions
-    if (player.x < 5) {
-        player.x = 5;
-    } else if (player.x > canvas.width - player.width - 5) {
-        player.x = canvas.width - player.width - 5;
+    if (player.target.x < 5) {
+        player.target.x = 5;
+    } else if (player.target.x > canvas.width - player.width - 5) {
+        player.target.x = canvas.width - player.width - 5;
     }
-    if (player.y < 100) {
-        player.y = 100;
-    } else if (player.y > canvas.height - player.height - 35) {
-        player.y = canvas.height - player.height - 35;
+    if (player.target.y < 100) {
+        player.target.y = 100;
+    } else if (player.target.y > canvas.height - player.height - 35) {
+        player.target.y = canvas.height - player.height - 35;
     }
+
+    player.pos.x = player.pos.x + ((player.target.x - player.pos.x) * player.drag);
+    player.pos.y = player.pos.y + ((player.target.y - player.pos.y) * player.drag);
+    // player.pos.y
 }
 
 function drawPlayer() {
     ctx.save();
     ctx.beginPath();
 
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+    ctx.translate(player.pos.x + player.width / 2, player.pos.y + player.height / 2);
     ctx.rotate(player.rotate * Math.PI / 180);
     ctx.fillStyle = player.color;
 
@@ -275,7 +335,7 @@ function drawGround(dt) {
     ctx.fillRect(base.x, base.y, base.w, base.h);
     ctx.fillStyle = darkPurple;
     ctx.fillRect(base.x + 5, base.y + 5, 5, 5);
-    ctx.fillRect(base.x + 15, base.y + 5, 5, 5); 
+    ctx.fillRect(base.x + 15, base.y + 5, 5, 5);
     ctx.fillRect(base.x + 35, base.y + 5, 5, 5);
     ctx.fillRect(base.x + 15, base.y + 15, 5, 5);
     ctx.fillRect(base.x + 15, base.y + 15, 5, 5);
@@ -302,8 +362,11 @@ function drawUi() {
     ctx.fillText(Math.floor(timeElapsed) + ' s', 10, canvas.height - 8);
 
     // rocket health
-    // drawHeart();
-    drawStar(240, 600, 20, 1);
+    if (rocket.show_health) {
+        drawHeart(200, 615, 20, 20);
+        drawHeart(230, 615, 20, 20);
+        drawHeart(260, 615, 20, 20);
+    }
 }
 
 function drawParticles() {
@@ -335,23 +398,25 @@ function drawCircle(x, y, radius, color) {
     ctx.fill();
 }
 
-function drawHeart(x, y) {
+function drawHeart(x, y, w, h) {
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(75, 40);
-    // 130,120
-    ctx.bezierCurveTo(75, 37, 70, 25, 50, 25);
-    ctx.bezierCurveTo(20, 25, 20, 62.5, 20, 62.5);
-    ctx.bezierCurveTo(20, 80, 40, 102, 75, 120);
-    ctx.bezierCurveTo(110, 102, 130, 80, 130, 62.5);
-    ctx.bezierCurveTo(130, 62.5, 130, 25, 100, 25);
-    ctx.bezierCurveTo(85, 25, 75, 37, 75, 40);
+    ctx.translate(x, y);
+
+    ctx.moveTo(w/2, h/5);
+    ctx.bezierCurveTo(w/2, h/5.88, w/2.2, h/20, w/3.67, h/20);
+    ctx.bezierCurveTo(0, h/20, 0, h/2.35, 0, h/2.35);
+    ctx.bezierCurveTo(0, h/1.67, w/5.5, h/1.22, w/2, h);
+    ctx.bezierCurveTo(w/1.22, h/1.22, w, h/1.67, w, h/2.35);
+    ctx.bezierCurveTo(w, h/2.35, w, h/20, w/1.38, h/20);
+    ctx.bezierCurveTo(w/1.69, h/20, w/2, h/5.88, w/2, h/5);
+
     ctx.fill();
+    ctx.restore();
 }
 
 function drawClouds() {
     for (var index in clouds) {
-        // ctx.fillStyle = black;
-        // ctx.fillRect(clouds[index].x, clouds[index].y, clouds[index].w, clouds[index].h);
         ctx.save();
         ctx.beginPath();
 
@@ -359,30 +424,28 @@ function drawClouds() {
 
         if (!clouds[index].hasOwnProperty('circles')) {
             clouds[index].circles = [];
-            var circlesNb = Math.ceil(clouds[index].w / 40)+1;
+            var circlesNb = Math.ceil(clouds[index].w / 40) + 1;
             var cloudRadius;
             var cloudX = 0;
             var centerFactor = 0;
             for (var i = 1; i <= circlesNb; i++) {
-                centerFactor = Math.abs(1-(Math.abs(clouds[index].w/2 - cloudX)/(clouds[index].w/2)));
-                console.log(centerFactor);
-                cloudRadius = rand.range(10,15)+30*centerFactor;
+                centerFactor = Math.abs(1 - (Math.abs(clouds[index].w / 2 - cloudX) / (clouds[index].w / 2)));
+                cloudRadius = rand.range(10, 15) + 30 * centerFactor;
                 clouds[index].circles.push({
                     x: cloudX + cloudRadius,
                     y: clouds[index].h - cloudRadius,
                     radius: cloudRadius
                 });
-                cloudX = cloudX + cloudRadius*1.5;
+                cloudX = cloudX + cloudRadius * 1.5;
             }
-            console.log("---");
         }
         for (var ic in clouds[index].circles) {
             drawCircle(clouds[index].circles[ic].x, clouds[index].circles[ic].y, clouds[index].circles[ic].radius, lightPurple);
         }
-        var lastCircleRadius = clouds[index].circles[clouds[index].circles.length-1].radius;
+        var lastCircleRadius = clouds[index].circles[clouds[index].circles.length - 1].radius;
         ctx.moveTo(-40, clouds[index].h);
         ctx.lineTo(clouds[index].w / 2, clouds[index].h / 1.5);
-        ctx.lineTo(clouds[index].w+lastCircleRadius*2+40, clouds[index].h);
+        ctx.lineTo(clouds[index].w + lastCircleRadius * 2 + 40, clouds[index].h);
         ctx.fill();
 
         ctx.restore();
@@ -402,7 +465,8 @@ function drawStar(x, y, radius, alpha) {
         //cx and cy are the center point of the star.
         ctx.lineTo(x + (ra * Math.sin(omega)), y + (ra * Math.cos(omega)));
     }
-    ctx.closePath();
+    // ctx.closePath();
+    ctx.fill();
 }
 
 function drawWave(from, to, frequency, amplitude, step, negative) {
@@ -424,7 +488,7 @@ function drawWave(from, to, frequency, amplitude, step, negative) {
     }
 }
 
-function particlesEmitter(settings) {
+function particlesEmitter(settings, dt) {
     var settings_default = {
         density: 20,
         sizeRange: {min: 3, max: 10},
@@ -447,8 +511,8 @@ function particlesEmitter(settings) {
                 size: rand.range(this.settings.sizeRange.min, this.settings.sizeRange.max),
                 x: this.settings.startingX,
                 y: this.settings.startingY,
-                vx: this.settings.velocity * Math.cos(angle),
-                vy: this.settings.velocity * Math.sin(angle),
+                vx: this.settings.velocity * dt * Math.cos(angle),
+                vy: this.settings.velocity * dt * Math.sin(angle),
                 life: 0,
             };
             particles.push(Object.assign(this.settings, particleSettings));
