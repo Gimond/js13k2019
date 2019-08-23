@@ -12,7 +12,8 @@ var plugins = [
     'PRODUCTION': isProduction
   }),
   new HtmlPlugin({
-    title: 'Johnson\'s cat'
+    title: 'Johnson\'s cat',
+    template: 'src/index.ejs'
   })
 ];
 

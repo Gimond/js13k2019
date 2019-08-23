@@ -61,7 +61,18 @@ var clouds = [];
 var explosions = [];
 var particlesSettings = {
     rocket: {
-        sizeRange: {min: 3, max: 10},
+        sizeRange: {min: 3, max: 8},
+        gravity: 0,
+        density: 50,
+        angle: {min: 80, max: 100},
+        maxLife: rand.range(20, 30),
+        velocity: 150,
+        startingX: player.pos.x + player.width / 2,
+        startingY: player.pos.y + player.height - 10,
+        color: orange
+    },
+    rocket_smoke: {
+        sizeRange: {min: 5, max: 12},
         gravity: 0,
         density: 30,
         angle: {min: 80, max: 100},
@@ -69,13 +80,29 @@ var particlesSettings = {
         velocity: 150,
         startingX: player.pos.x + player.width / 2,
         startingY: player.pos.y + player.height - 10,
-        color: orange
+        color: white
+    },
+    ground_smoke: {
+        sizeRange: {min: 3, max: 10},
+        gravity: 0,
+        density: 80,
+        angle: {min: -15, max: 195},
+        maxLife: rand.range(20, 30),
+        velocity: 150,
+        startingX: 240 + player.width / 2,
+        startingY: screenY + 470 + screenY / 3,
+        color: white
     }
 };
 
 // game loop
 loop.start(function (dt) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    var gradient = ctx.createLinearGradient(0, 0, 200, 0);
+    gradient.addColorStop(0, deepPurple);
+    gradient.addColorStop(1, purple);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, -10000, 480, 640);
 
     if (timeFlowing) {
         timeElapsed += dt;
@@ -134,19 +161,10 @@ loop.start(function (dt) {
             updatePlayer(dt);
 
             particlesEmitter(particlesSettings.rocket, dt);
+            particlesEmitter(particlesSettings.rocket_smoke, dt);
 
             if (screenY < 640) {
-                particlesEmitter({
-                    sizeRange: {min: 3, max: 10},
-                    gravity: 0,
-                    density: 80,
-                    angle: {min: -15, max: 195},
-                    maxLife: rand.range(20, 30),
-                    velocity: 150,
-                    startingX: 240 + player.width / 2,
-                    startingY: screenY + 470 + screenY / 3,
-                    color: orange
-                });
+                particlesEmitter(particlesSettings.ground_smoke, dt);
                 drawTitle();
             }
 
@@ -175,17 +193,8 @@ loop.start(function (dt) {
 
             updatePlayer(dt);
 
-            particlesEmitter({
-                sizeRange: {min: 3, max: 10},
-                gravity: 0,
-                density: 30,
-                angle: {min: 80, max: 100},
-                maxLife: rand.range(20, 30),
-                velocity: 150,
-                startingX: player.pos.x + player.width / 2,
-                startingY: player.pos.y + player.height - 10,
-                color: orange
-            });
+            particlesEmitter(particlesSettings.rocket, dt);
+            particlesEmitter(particlesSettings.rocket_smoke, dt);
             drawParticles();
             drawPlayer();
             break;
@@ -200,6 +209,7 @@ loop.start(function (dt) {
             timeFlowing = false;
             break;
     }
+    updateCamera(dt);
     drawUi();
 });
 
@@ -227,6 +237,10 @@ function updateClouds(dt) {
             clouds.splice(index, 1);
         }
     }
+}
+
+function updateCamera(dt) {
+    // camera.y
 }
 
 function updatePlayer(dt) {
