@@ -65,21 +65,18 @@ var particlesSettings = {
         gravity: 0,
         density: 50,
         angle: {min: 80, max: 100},
-        maxLife: rand.range(20, 30),
+        maxLifeRange: {min: 10, max: 30},
         velocity: 150,
-        startingX: player.pos.x + player.width / 2,
-        startingY: player.pos.y + player.height - 10,
-        color: orange
+        color: orange,
+        front: true
     },
     rocket_smoke: {
-        sizeRange: {min: 5, max: 12},
+        sizeRange: {min: 4, max: 12},
         gravity: 0,
         density: 30,
         angle: {min: 80, max: 100},
-        maxLife: rand.range(20, 30),
+        maxLifeRange: {min: 30, max: 40},
         velocity: 150,
-        startingX: player.pos.x + player.width / 2,
-        startingY: player.pos.y + player.height - 10,
         color: white
     },
     ground_smoke: {
@@ -87,10 +84,8 @@ var particlesSettings = {
         gravity: 0,
         density: 80,
         angle: {min: -15, max: 195},
-        maxLife: rand.range(20, 30),
+        maxLifeRange: {min: 20, max: 30},
         velocity: 150,
-        startingX: 240 + player.width / 2,
-        startingY: screenY + 470 + screenY / 3,
         color: white
     }
 };
@@ -121,16 +116,19 @@ loop.start(function (dt) {
         case "title":
             timeElapsed = 0;
             timeFlowing = false;
-            screenY = 0;
             screenVelocity = 0;
-            player.sprite = 'rocket';
-            player.accel.x = 0;
-            player.accel.y = 0;
-            player.pos.x = 240;
-            player.pos.y = 420;
+
+            player = {
+                pos: {x:240, y:420},
+                accel: {x:0, y:0},
+                target: {x:0, y:0},
+                sprite: 'rocket',
+                rotate: 0,
+                drag: 0.93,
+                width: 24,
+                height: 50
+            };
             player.target = player.pos;
-            player.width = 24;
-            player.height = 50;
             updatePlayer(dt);
 
             if (key.isDown(key.SPACE)) {
@@ -160,11 +158,11 @@ loop.start(function (dt) {
 
             updatePlayer(dt);
 
-            particlesEmitter(particlesSettings.rocket, dt);
-            particlesEmitter(particlesSettings.rocket_smoke, dt);
+            particlesEmitter(player.pos.x + player.width / 2, player.pos.y + player.height - 10, particlesSettings.rocket, dt);
+            particlesEmitter(player.pos.x + player.width / 2, player.pos.y + player.height - 10, particlesSettings.rocket_smoke, dt);
 
             if (screenY < 640) {
-                particlesEmitter(particlesSettings.ground_smoke, dt);
+                particlesEmitter(240 + player.width / 2, screenY + 470 + screenY / 3, particlesSettings.ground_smoke, dt);
                 drawTitle();
             }
 
@@ -191,32 +189,45 @@ loop.start(function (dt) {
 
             screenY = screenY + screenSpeed * dt;
 
+            if (screenY > 1000) {
+                screenVelocity = 0;
+                state = "explode";
+            }
+
             updatePlayer(dt);
 
-            particlesEmitter(particlesSettings.rocket, dt);
-            particlesEmitter(particlesSettings.rocket_smoke, dt);
+            particlesEmitter(player.pos.x + player.width / 2, player.pos.y + player.height - 10, particlesSettings.rocket, dt);
+            particlesEmitter(player.pos.x + player.width / 2, player.pos.y + player.height - 10, particlesSettings.rocket_smoke, dt);
             drawParticles();
             drawPlayer();
             break;
         case "explode":
+            player.accel.x = 150;
+            player.accel.y = 0;
+            player.sprite = 'cat';
+            rocket.show_health = false;
+            screenY = screenY + screenSpeed * dt;
 
+            if (screenVelocity < 1) {
+                screenVelocity = screenVelocity + dt / 4;
+            }
+            console.log(screenSpeed, screenMaxSpeed);
+            if (screenSpeed > -screenMaxSpeed) {
+                screenSpeed = screenSpeed-100*dt;
+            }
             break;
         case "falling":
             player.accel.x = 150;
-            player.accel.y = 75;
             break;
         case "fallen":
             timeFlowing = false;
             break;
     }
-    updateCamera(dt);
     drawUi();
 });
 
 function addClouds() {
-    console.log(clouds);
     if (clouds.length) {
-        // console.log(clouds);
         var nextY = clouds.slice(-1)[0].y - rand.range(minCloudSpace, maxCloudSpace);
     } else {
         nextY = 100;
@@ -232,15 +243,33 @@ function updateClouds(dt) {
     for (var index in clouds) {
         clouds[index].x += 5*dt;
 
-        if (clouds[index].x > 520 || screenY > clouds[index].y + 640) {
-            // delete clouds[index];
+        if (clouds[index].x > 520 || screenY > Math.abs(clouds[index].y) + 640) {
             clouds.splice(index, 1);
         }
     }
 }
 
-function updateCamera(dt) {
-    // camera.y
+function addClouds() {
+    if (clouds.length) {
+        var nextY = clouds.slice(-1)[0].y - rand.range(minCloudSpace, maxCloudSpace);
+    } else {
+        nextY = 100;
+    }
+    if (nextY + screenY > -200) {
+        clouds.push(
+            {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
+        );
+    }
+}
+
+function updateClouds(dt) {
+    for (var index in clouds) {
+        clouds[index].x += 5*dt;
+
+        if (clouds[index].x > 520 || screenY > Math.abs(clouds[index].y) + 640) {
+            clouds.splice(index, 1);
+        }
+    }
 }
 
 function updatePlayer(dt) {
@@ -277,7 +306,6 @@ function updatePlayer(dt) {
 
     player.pos.x = player.pos.x + ((player.target.x - player.pos.x) * player.drag);
     player.pos.y = player.pos.y + ((player.target.y - player.pos.y) * player.drag);
-    // player.pos.y
 }
 
 function drawPlayer() {
@@ -396,11 +424,14 @@ function drawParticles() {
 
         // Create the shapes
         drawCircle(particles[index].x, particles[index].y, particles[index].size, particles[index].color);
+        // console.log(particles[index]);
+    // debugger;
 
         // If Particle is old, it goes in the chamber for renewal
         if (particles[index].life >= particles[index].maxLife) {
-            delete particles[index];
+            particles.splice(index, 1);
         }
+
     }
 }
 
@@ -502,12 +533,14 @@ function drawWave(from, to, frequency, amplitude, step, negative) {
     }
 }
 
-function particlesEmitter(settings, dt) {
+function particlesEmitter(x, y, settings, dt) {
     var settings_default = {
+        startingX: x,
+        startingY: y,
         density: 20,
         sizeRange: {min: 3, max: 10},
         gravity: 0.5,
-        maxLife: 10,
+        maxLifeRange: {min: 10, max: 20},
         velocity: 5,
         angle: {min: 0, max: 360}
     };
@@ -527,9 +560,14 @@ function particlesEmitter(settings, dt) {
                 y: this.settings.startingY,
                 vx: this.settings.velocity * dt * Math.cos(angle),
                 vy: this.settings.velocity * dt * Math.sin(angle),
+                maxLife: rand.range(this.settings.maxLifeRange.min, this.settings.maxLifeRange.max),
                 life: 0,
             };
-            particles.push(Object.assign(this.settings, particleSettings));
+            if (this.settings.front) {
+                particles.push(Object.assign(this.settings, particleSettings));
+            } else {
+                particles.unshift(Object.assign(this.settings, particleSettings));
+            }
         }
     }
 }
