@@ -3,6 +3,7 @@ var rand = require('./rand');
 var key = require('./key');
 
 const screenMaxSpeed = 200;
+const screenMaxSpeedFalling = 400;
 const white = '#fff';
 const black = '#000';
 const orange = '#ff9800';
@@ -34,18 +35,20 @@ var timeFlowing = false;
 var waveAmplitudeModifier;
 var waveAmplitude = 2;
 var drag = 1;
+var starrySky = [];
+generateStarrySky();
 
 // player
 var camera = {
-    pos: {x:0, y:0},
-    accel: {x:0, y:0},
-    target: {x:0, y:0},
+    pos: {x: 0, y: 0},
+    accel: {x: 0, y: 0},
+    target: {x: 0, y: 0},
     drag: 0.3
 };
 var player = {
-    pos: {x:0, y:0},
-    accel: {x:0, y:0},
-    target: {x:0, y:0},
+    pos: {x: 0, y: 0},
+    accel: {x: 0, y: 0},
+    target: {x: 0, y: 0},
     sprite: 'rocket',
     rotate: 0,
     drag: 0.93
@@ -110,6 +113,8 @@ loop.start(function (dt) {
         addClouds();
     }
     updateClouds(dt);
+
+    drawStarrySky();
     drawClouds();
 
     switch (state) {
@@ -119,9 +124,9 @@ loop.start(function (dt) {
             screenVelocity = 0;
 
             player = {
-                pos: {x:240, y:420},
-                accel: {x:0, y:0},
-                target: {x:0, y:0},
+                pos: {x: 240, y: 420},
+                accel: {x: 0, y: 0},
+                target: {x: 0, y: 0},
                 sprite: 'rocket',
                 rotate: 0,
                 drag: 0.93,
@@ -190,8 +195,9 @@ loop.start(function (dt) {
             screenY = screenY + screenSpeed * dt;
 
             if (screenY > 1000) {
+                screenSpeed = 500;
                 screenVelocity = 0;
-                state = "explode";
+                state = "falling";
             }
 
             updatePlayer(dt);
@@ -201,70 +207,81 @@ loop.start(function (dt) {
             drawParticles();
             drawPlayer();
             break;
-        case "explode":
+        case "falling":
             player.accel.x = 150;
             player.accel.y = 0;
             player.sprite = 'cat';
+            player.width = 40;
+            player.height = 25;
             rocket.show_health = false;
             screenY = screenY + screenSpeed * dt;
 
             if (screenVelocity < 1) {
                 screenVelocity = screenVelocity + dt / 4;
             }
-            console.log(screenSpeed, screenMaxSpeed);
-            if (screenSpeed > -screenMaxSpeed) {
-                screenSpeed = screenSpeed-100*dt;
+            if (screenSpeed > -screenMaxSpeedFalling) {
+                screenSpeed = screenSpeed - 350 * dt;
             }
-            break;
-        case "falling":
-            player.accel.x = 150;
+            if (screenY <= 0) {
+                screenY = 0;
+                state = "fallen";
+            }
+
+            if (screenY <= 640) {
+                drawFarm(dt);
+            }
+            drawParticles();
+            drawPlayer();
+
             break;
         case "fallen":
+            drawFarm(dt);
             timeFlowing = false;
             break;
     }
     drawUi();
 });
 
-function addClouds() {
-    if (clouds.length) {
-        var nextY = clouds.slice(-1)[0].y - rand.range(minCloudSpace, maxCloudSpace);
-    } else {
-        nextY = 100;
-    }
-    if (nextY + screenY > -200) {
-        clouds.push(
-            {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
-        );
-    }
-}
+function generateStarrySky() {
+    caseh = 640 / 10;
+    casew = 480 / 5;
 
-function updateClouds(dt) {
-    for (var index in clouds) {
-        clouds[index].x += 5*dt;
-
-        if (clouds[index].x > 520 || screenY > Math.abs(clouds[index].y) + 640) {
-            clouds.splice(index, 1);
+    for (i = 0; i < 10; i++) {
+        for (j = 0; j < 5; j++) {
+            starrySky.push({
+                x: rand.range(j * casew, j * casew + casew),
+                y: rand.range(i * caseh, i * caseh + caseh),
+                radius: rand.range(1, 3)
+            });
         }
     }
 }
 
 function addClouds() {
-    if (clouds.length) {
-        var nextY = clouds.slice(-1)[0].y - rand.range(minCloudSpace, maxCloudSpace);
+    var nextY = 100;
+    if (screenSpeed >= 0) {
+        if (clouds.length) {
+            nextY = clouds.slice(-1)[0].y - rand.range(minCloudSpace, maxCloudSpace);
+        }
+        if (nextY + screenY > -200) {
+            clouds.push(
+                {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
+            );
+        }
     } else {
-        nextY = 100;
-    }
-    if (nextY + screenY > -200) {
-        clouds.push(
-            {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
-        );
+        nextY = clouds[0].y - rand.range(minCloudSpace, maxCloudSpace);
+
+        if (nextY + screenY > 840) {
+            clouds.unshift(
+                {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
+            );
+        }
     }
 }
 
 function updateClouds(dt) {
     for (var index in clouds) {
-        clouds[index].x += 5*dt;
+        clouds[index].x += 5 * dt;
 
         if (clouds[index].x > 520 || screenY > Math.abs(clouds[index].y) + 640) {
             clouds.splice(index, 1);
@@ -314,7 +331,7 @@ function drawPlayer() {
 
     ctx.translate(player.pos.x + player.width / 2, player.pos.y + player.height / 2);
     ctx.rotate(player.rotate * Math.PI / 180);
-    ctx.fillStyle = player.color;
+    ctx.fillStyle = white;
 
     switch (player.sprite) {
         case "rocket":
@@ -331,7 +348,7 @@ function drawPlayer() {
             drawCircle(0, -player.height / 2.5, player.width / 8, purple);
             break;
         case "cat":
-            ctx.fillRect(0, 0, player.width / 2, player.height - 3);
+            ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
             break;
     }
 
@@ -385,6 +402,27 @@ function drawGround(dt) {
     ctx.fillRect(base.x + 5, base.y + 25, 5, 5);
 }
 
+function drawFarm(dt) {
+    ctx.fillStyle = darkerPurple;
+    // sea
+    if (waveAmplitude >= 2) {
+        waveAmplitudeModifier = -dt * 5;
+    }
+    if (waveAmplitude <= -2) {
+        waveAmplitudeModifier = dt * 5;
+    }
+    waveAmplitude = waveAmplitude + waveAmplitudeModifier;
+    ctx.beginPath();
+    ctx.moveTo(0, screenY + 490);
+    drawWave({x: 0, y: screenY + 490}, {x: 150, y: screenY + 490}, 8, waveAmplitude, 4);
+    // ground
+    ctx.lineTo(160, screenY + 480);
+    ctx.lineTo(480, screenY + 480);
+    ctx.lineTo(480, screenY + 640);
+    ctx.lineTo(0, screenY + 640);
+    ctx.fill();
+}
+
 function drawUi() {
     // background
     ctx.fillStyle = black;
@@ -424,8 +462,6 @@ function drawParticles() {
 
         // Create the shapes
         drawCircle(particles[index].x, particles[index].y, particles[index].size, particles[index].color);
-        // console.log(particles[index]);
-    // debugger;
 
         // If Particle is old, it goes in the chamber for renewal
         if (particles[index].life >= particles[index].maxLife) {
@@ -448,13 +484,13 @@ function drawHeart(x, y, w, h) {
     ctx.beginPath();
     ctx.translate(x, y);
 
-    ctx.moveTo(w/2, h/5);
-    ctx.bezierCurveTo(w/2, h/5.88, w/2.2, h/20, w/3.67, h/20);
-    ctx.bezierCurveTo(0, h/20, 0, h/2.35, 0, h/2.35);
-    ctx.bezierCurveTo(0, h/1.67, w/5.5, h/1.22, w/2, h);
-    ctx.bezierCurveTo(w/1.22, h/1.22, w, h/1.67, w, h/2.35);
-    ctx.bezierCurveTo(w, h/2.35, w, h/20, w/1.38, h/20);
-    ctx.bezierCurveTo(w/1.69, h/20, w/2, h/5.88, w/2, h/5);
+    ctx.moveTo(w / 2, h / 5);
+    ctx.bezierCurveTo(w / 2, h / 5.88, w / 2.2, h / 20, w / 3.67, h / 20);
+    ctx.bezierCurveTo(0, h / 20, 0, h / 2.35, 0, h / 2.35);
+    ctx.bezierCurveTo(0, h / 1.67, w / 5.5, h / 1.22, w / 2, h);
+    ctx.bezierCurveTo(w / 1.22, h / 1.22, w, h / 1.67, w, h / 2.35);
+    ctx.bezierCurveTo(w, h / 2.35, w, h / 20, w / 1.38, h / 20);
+    ctx.bezierCurveTo(w / 1.69, h / 20, w / 2, h / 5.88, w / 2, h / 5);
 
     ctx.fill();
     ctx.restore();
@@ -512,6 +548,22 @@ function drawStar(x, y, radius, alpha) {
     }
     // ctx.closePath();
     ctx.fill();
+}
+
+function drawStarrySky() {
+    ctx.save();
+    var opacity = (screenY - 1000) / 8000;
+    if (opacity < 0) {
+        opacity = 0;
+    }
+    if (opacity > 1) {
+        opacity = 1;
+    }
+    ctx.globalAlpha = opacity;
+    for (i in starrySky) {
+        drawCircle(starrySky[i].x, starrySky[i].y, starrySky[i].radius, white);
+    }
+    ctx.restore();
 }
 
 function drawWave(from, to, frequency, amplitude, step, negative) {
