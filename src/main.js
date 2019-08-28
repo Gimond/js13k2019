@@ -107,26 +107,34 @@ var particlesSettings = {
 var ac = new AudioContext();
 
 // set the playback tempo (120 beats per minute)
-var tempo = 120;
+var tempo = 132;
 
 // create some notes ('<Note Name> <Beat Length>')
 // q = quarter note, h = half note (more on that later)
-var note1 = new TinyMusic.Note('G3 q');
-var note2 = new TinyMusic.Note('E4 q');
-var note3 = new TinyMusic.Note('C4 h');
-
 // create a new sequence
-var sequence = new TinyMusic.Sequence( ac, tempo );
-
-// add the notes
-sequence.push( note1, note2, note3 );
+var sequence = new TinyMusic.Sequence( ac, tempo, [
+    'D3 q',
+    'A3 q',
+    'D3 q',
+    'B3 q',
+  ]);
+  var sequence2 = new TinyMusic.Sequence( ac, tempo, [
+    '- q',
+    'E3 q',
+    'A3 q',
+    'G3 q',
+  ]);
 
 // disable looping
 sequence.loop = false;
+sequence2.loop = false;
+sequence.staccato = 0.55;
+sequence2.staccato = 0.55;
 
 // play it
 sequence.play();
-
+sequence2.play();
+ 
 // game loop
 loop.start(function (dt) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -135,6 +143,8 @@ loop.start(function (dt) {
     gradient.addColorStop(1, purple);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, -10000, 480, 640);
+
+    ac.resume();
 
     if (timeFlowing) {
         timeElapsed += dt;
@@ -245,7 +255,7 @@ loop.start(function (dt) {
 
             screenY = screenY + screenSpeed * dt;
 
-            if (screenY > 1000) {
+            if (screenY > 3000) {
                 screenSpeed = 500;
                 screenVelocity = 0;
                 state = "falling";
