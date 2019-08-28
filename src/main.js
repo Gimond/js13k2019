@@ -1,6 +1,7 @@
 var loop = require('./loop');
 var rand = require('./rand');
 var key = require('./key');
+var TinyMusic = require('./TinyMusic.min');
 
 const screenMaxSpeed = 200;
 const screenMaxSpeedFalling = 400;
@@ -18,6 +19,12 @@ const maxObstacleSpace = 300;
 const minCloudSpace = 100;
 const maxCloudSpace = 300;
 
+const sounds = {
+    'liftoff' : '3,0.18,1,0.73,0.87,0.0906,,,,0.36,,-0.4493,0.7532,,,,0.3196,-0.038,1,,,,,0.5',
+    'explosion1' : '3,,0.2339,0.3721,0.488,0.0617,,,,,,,,,,,,,1,,,,,0.5',
+    'explosion2' : '3,,0.2482,0.2742,0.4265,0.2327,,0.0663,,,,,,,,,-0.2529,-0.0528,1,,,,,0.5',
+};
+
 var canvas = document.createElement('canvas');
 canvas.width = 480;
 canvas.height = 640;
@@ -30,6 +37,8 @@ var state = 'title';
 var screenY = 0;
 var screenVelocity = 0; // 0 to 1
 var screenSpeed = 0;
+var screenShake = 0;
+var screenShakeDamper = 0;
 var timeElapsed = 0;
 var timeFlowing = false;
 var waveAmplitudeModifier;
@@ -93,6 +102,31 @@ var particlesSettings = {
     }
 };
 
+
+// create a new Web Audio API context
+var ac = new AudioContext();
+
+// set the playback tempo (120 beats per minute)
+var tempo = 120;
+
+// create some notes ('<Note Name> <Beat Length>')
+// q = quarter note, h = half note (more on that later)
+var note1 = new TinyMusic.Note('G3 q');
+var note2 = new TinyMusic.Note('E4 q');
+var note3 = new TinyMusic.Note('C4 h');
+
+// create a new sequence
+var sequence = new TinyMusic.Sequence( ac, tempo );
+
+// add the notes
+sequence.push( note1, note2, note3 );
+
+// disable looping
+sequence.loop = false;
+
+// play it
+sequence.play();
+
 // game loop
 loop.start(function (dt) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -113,6 +147,21 @@ loop.start(function (dt) {
         addClouds();
     }
     updateClouds(dt);
+
+    ctx.save();
+    if (screenShake < 0) {
+        screenShake = 0;
+    }
+    if (screenShake > 0) {
+        // get random acceleration on the interval [-strength, strength)
+        var randx = Math.random() * 2 * screenShake - screenShake;
+        var randy = Math.random() * 2 * screenShake - screenShake;
+        // add in the shaking acceleration
+        ctx.translate(randx, randy);
+
+        // reduce strength
+        screenShake -= screenShakeDamper*dt;
+    }
 
     drawStarrySky();
     drawClouds();
@@ -137,6 +186,8 @@ loop.start(function (dt) {
             updatePlayer(dt);
 
             if (key.isDown(key.SPACE)) {
+                screenShake = 4;
+                screenShakeDamper = 1;
                 state = "liftoff";
             }
 
@@ -155,7 +206,7 @@ loop.start(function (dt) {
             } else {
                 // mash keys to take control
                 if (key.isDown(key.SPACE)) {
-                    state = "liftoff";
+                    //state = "taking_control";
                 }
                 state = "taking_control";
             }
@@ -239,6 +290,8 @@ loop.start(function (dt) {
             timeFlowing = false;
             break;
     }
+
+    ctx.restore();
     drawUi();
 });
 
@@ -269,9 +322,9 @@ function addClouds() {
             );
         }
     } else {
-        nextY = clouds[0].y - rand.range(minCloudSpace, maxCloudSpace);
+        nextY = clouds[0].y + rand.range(minCloudSpace, maxCloudSpace);
 
-        if (nextY + screenY > 840) {
+        if (nextY + screenY > 300) {
             clouds.unshift(
                 {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
             );
@@ -283,9 +336,10 @@ function updateClouds(dt) {
     for (var index in clouds) {
         clouds[index].x += 5 * dt;
 
-        if (clouds[index].x > 520 || screenY > Math.abs(clouds[index].y) + 640) {
+        if (clouds[index].x > 520 || screenY > Math.abs(clouds[index].y) + 640 || screenY < Math.abs(clouds[index].y) - 640) {
             clouds.splice(index, 1);
         }
+        // console.log(clouds.length);
     }
 }
 
@@ -370,7 +424,7 @@ function drawGround(dt) {
     ctx.fillStyle = darkerPurple;
     // ground
     ctx.beginPath();
-    ctx.moveTo(0, screenY + 440);
+    ctx.moveTo(-10, screenY + 440);
     ctx.lineTo(100, screenY + 440);
     ctx.lineTo(130, screenY + 470);
     ctx.lineTo(340, screenY + 470);
@@ -383,8 +437,8 @@ function drawGround(dt) {
         waveAmplitudeModifier = dt * 5;
     }
     waveAmplitude = waveAmplitude + waveAmplitudeModifier;
-    drawWave({x: 380, y: screenY + 490}, {x: 480, y: screenY + 490}, 8, waveAmplitude, 4);
-    ctx.lineTo(480, screenY + 640);
+    drawWave({x: 380, y: screenY + 490}, {x: 490, y: screenY + 490}, 8, waveAmplitude, 4);
+    ctx.lineTo(490, screenY + 640);
     ctx.lineTo(0, screenY + 640);
     ctx.fill();
     // rocket support
