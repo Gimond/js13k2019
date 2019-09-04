@@ -353,6 +353,38 @@ function updateClouds(dt) {
     }
 }
 
+function addObstacles() {
+    var nextY = 100;
+    if (screenSpeed >= 0) {
+        if (obstacles.length) {
+            nextY = obstacles.slice(-1)[0].y - rand.range(minObstacleSpace, maxObstacleSpace);
+        }
+        if (nextY + screenY > -200) {
+            obstacles.push(
+                {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
+            );
+        }
+    } else {
+        nextY = obstacles[0].y + rand.range(minObstacleSpace, maxObstacleSpace);
+
+        if (nextY + screenY > 300) {
+            obstacles.unshift(
+                {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
+            );
+        }
+    }
+}
+
+function updateObstacles(dt) {
+    for (var index in obstacles) {
+        obstacles[index].x += 5 * dt;
+
+        if (obstacles[index].x > 520 || screenY > Math.abs(obstacles[index].y) + 640 || screenY < Math.abs(obstacles[index].y) - 640) {
+            obstacles.splice(index, 1);
+        }
+    }
+}
+
 function updatePlayer(dt) {
     // update player
     player.rotate = 0;
