@@ -2,6 +2,7 @@ var loop = require('./loop');
 var rand = require('./rand');
 var key = require('./key');
 var TinyMusic = require('./TinyMusic.min');
+var jsfxr = require('./jsfxr');
 
 const screenMaxSpeed = 200;
 const screenMaxSpeedFalling = 400;
@@ -19,10 +20,10 @@ const maxObstacleSpace = 300;
 const minCloudSpace = 100;
 const maxCloudSpace = 300;
 
-const sounds = {
-    'liftoff' : '3,0.18,1,0.73,0.87,0.0906,,,,0.36,,-0.4493,0.7532,,,,0.3196,-0.038,1,,,,,0.5',
-    'explosion1' : '3,,0.2339,0.3721,0.488,0.0617,,,,,,,,,,,,,1,,,,,0.5',
-    'explosion2' : '3,,0.2482,0.2742,0.4265,0.2327,,0.0663,,,,,,,,,-0.2529,-0.0528,1,,,,,0.5',
+const sfx = {
+    'liftoff': [3,0.18,1,0.73,0.87,0.0906,,,,0.36,,-0.4493,0.7532,,,,0.3196,-0.038,1,,,,,0.5],
+    'explosion1': [3,,0.2339,0.3721,0.488,0.0617,,,,,,,,,,,,,1,,,,,0.5],
+    'explosion2': [3,,0.2482,0.2742,0.4265,0.2327,,0.0663,,,,,,,,,-0.2529,-0.0528,1,,,,,0.5],
 };
 
 var canvas = document.createElement('canvas');
@@ -103,38 +104,17 @@ var particlesSettings = {
 };
 
 
-// create a new Web Audio API context
+var fxPlayer = new Audio();
+
+fxPlayer.src = jsfxr(sfx.liftoff);
+fxPlayer.play();
+// fxPlayer.src = jsfxr(sfx.explosion1);
+// fxPlayer.play();
+
+// sounds
 var ac = new AudioContext();
+// playMusic();
 
-// set the playback tempo (120 beats per minute)
-var tempo = 132;
-
-// create some notes ('<Note Name> <Beat Length>')
-// q = quarter note, h = half note (more on that later)
-// create a new sequence
-var sequence = new TinyMusic.Sequence( ac, tempo, [
-    'D3 q',
-    'A3 q',
-    'D3 q',
-    'B3 q',
-  ]);
-  var sequence2 = new TinyMusic.Sequence( ac, tempo, [
-    '- q',
-    'E3 q',
-    'A3 q',
-    'G3 q',
-  ]);
-
-// disable looping
-sequence.loop = false;
-sequence2.loop = false;
-sequence.staccato = 0.55;
-sequence2.staccato = 0.55;
-
-// play it
-sequence.play();
-sequence2.play();
- 
 // game loop
 loop.start(function (dt) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -170,7 +150,7 @@ loop.start(function (dt) {
         ctx.translate(randx, randy);
 
         // reduce strength
-        screenShake -= screenShakeDamper*dt;
+        screenShake -= screenShakeDamper * dt;
     }
 
     drawStarrySky();
@@ -214,8 +194,10 @@ loop.start(function (dt) {
             if (screenSpeed < screenMaxSpeed) {
                 screenSpeed = screenVelocity * screenMaxSpeed;
             } else {
+                rocket.possession-=10;
                 // mash keys to take control
                 if (key.isDown(key.SPACE)) {
+                    rocket.possession+=10;
                     //state = "taking_control";
                 }
                 state = "taking_control";
@@ -255,7 +237,7 @@ loop.start(function (dt) {
 
             screenY = screenY + screenSpeed * dt;
 
-            if (screenY > 3000) {
+            if (rocket.health <= 0) {
                 screenSpeed = 500;
                 screenVelocity = 0;
                 state = "falling";
@@ -334,7 +316,7 @@ function addClouds() {
     } else {
         nextY = clouds[0].y + rand.range(minCloudSpace, maxCloudSpace);
 
-        if (nextY + screenY > 300) {
+        if (nextY + screenY > -300) {
             clouds.unshift(
                 {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
             );
@@ -722,4 +704,32 @@ function particlesEmitter(x, y, settings, dt) {
 
 function toRadians(angle) {
     return angle * (Math.PI / 180);
+}
+
+function playMusic() {
+    // set the playback tempo (120 beats per minute)
+    var tempo = 132;
+// create some notes ('<Note Name> <Beat Length>')
+// q = quarter note, h = half note (more on that later)
+// create a new sequence
+    var sequence = new TinyMusic.Sequence(ac, tempo, [
+        'D3 q',
+        'A3 q',
+        'D3 q',
+        'B3 q',
+    ]);
+    var sequence2 = new TinyMusic.Sequence(ac, tempo, [
+        '- q',
+        'E3 q',
+        'A3 q',
+        'G3 q',
+    ]);
+// disable looping
+    sequence.loop = false;
+    sequence2.loop = false;
+    sequence.staccato = 0.55;
+    sequence2.staccato = 0.55;
+// play it
+    sequence.play();
+    sequence2.play();
 }
