@@ -21,9 +21,9 @@ const minCloudSpace = 100;
 const maxCloudSpace = 300;
 
 const sfx = {
-    'liftoff': [3,0.18,1,0.73,0.87,0.0906,,,,0.36,,-0.4493,0.7532,,,,0.3196,-0.038,1,,,,,0.5],
-    'explosion1': [3,,0.2339,0.3721,0.488,0.0617,,,,,,,,,,,,,1,,,,,0.5],
-    'explosion2': [3,,0.2482,0.2742,0.4265,0.2327,,0.0663,,,,,,,,,-0.2529,-0.0528,1,,,,,0.5],
+    'liftoff': [3, 0.18, 1, 0.73, 0.87, 0.0906, , , , 0.36, , -0.4493, 0.7532, , , , 0.3196, -0.038, 1, , , , , 0.5],
+    'explosion1': [3, , 0.2339, 0.3721, 0.488, 0.0617, , , , , , , , , , , , , 1, , , , , 0.5],
+    'explosion2': [3, , 0.2482, 0.2742, 0.4265, 0.2327, , 0.0663, , , , , , , , , -0.2529, -0.0528, 1, , , , , 0.5],
 };
 
 var canvas = document.createElement('canvas');
@@ -45,7 +45,9 @@ var timeFlowing = false;
 var waveAmplitudeModifier;
 var waveAmplitude = 2;
 var drag = 1;
+var keySpaceDown = false;
 var starrySky = [];
+var zoom = 1;
 generateStarrySky();
 
 // player
@@ -64,10 +66,34 @@ var player = {
     drag: 0.93
 };
 var obstacles = [];
+var obstaclesTypes = {
+    kite: {
+        width: 10,
+        height: 10,
+        speedRange: {min: 2, max: 5}
+    },
+    bird: {
+        width: 10,
+        height: 10,
+        speedRange: {min: 15, max: 20}
+    },
+    plane: {
+        width: 30,
+        height: 15,
+        speedRange: {min: 15, max: 20}
+    },
+    satellite: {
+        width: 60,
+        height: 15,
+        speedRange: {min: 5, max: 10}
+    }
+};
 var particles = [];
 var rocket = {
     possession: 0, // 0 to 100, 100 meaning taking control of the rocket
+    showPossession: false,
     health: 3,
+    showHealth: false,
     explosionTimer: 0
 };
 var clouds = [];
@@ -106,8 +132,8 @@ var particlesSettings = {
 
 var fxPlayer = new Audio();
 
-fxPlayer.src = jsfxr(sfx.liftoff);
-fxPlayer.play();
+// fxPlayer.src = jsfxr(sfx.liftoff);
+// fxPlayer.play();
 // fxPlayer.src = jsfxr(sfx.explosion1);
 // fxPlayer.play();
 
@@ -137,6 +163,7 @@ loop.start(function (dt) {
         addClouds();
     }
     updateClouds(dt);
+    updateObstacles(dt);
 
     ctx.save();
     if (screenShake < 0) {
@@ -155,6 +182,7 @@ loop.start(function (dt) {
 
     drawStarrySky();
     drawClouds();
+    drawObstacles();
 
     switch (state) {
         case "title":
@@ -194,12 +222,23 @@ loop.start(function (dt) {
             if (screenSpeed < screenMaxSpeed) {
                 screenSpeed = screenVelocity * screenMaxSpeed;
             } else {
-                rocket.possession-=10;
+                rocket.showPossession = true;
+                rocket.possession -= 0.5;
                 // mash keys to take control
-                if (key.isDown(key.SPACE)) {
-                    rocket.possession+=10;
+                if (key.isDown(key.SPACE) && keySpaceDown !== key.isDown(key.SPACE)) {
+                    rocket.possession += 8;
+                    screenShake = 3;
+                    screenShakeDamper = 10;
                     //state = "taking_control";
                 }
+                keySpaceDown = key.isDown(key.SPACE);
+                if (rocket.possession <= 0) {
+                    rocket.possession = 0;
+                }
+                if (rocket.possession >= 100) {
+                    state = "taking_control";
+                }
+
                 state = "taking_control";
             }
             screenY = screenY + screenSpeed * dt;
@@ -233,8 +272,10 @@ loop.start(function (dt) {
         case "taking_control":
             player.accel.x = 150;
             player.accel.y = 75;
-            rocket.show_health = true;
+            rocket.showPossession = false;
+            rocket.showHealth = true;
 
+            addObstacles();
             screenY = screenY + screenSpeed * dt;
 
             if (rocket.health <= 0) {
@@ -256,7 +297,9 @@ loop.start(function (dt) {
             player.sprite = 'cat';
             player.width = 40;
             player.height = 25;
-            rocket.show_health = false;
+            rocket.showHealth = false;
+
+            addObstacles();
             screenY = screenY + screenSpeed * dt;
 
             if (screenVelocity < 1) {
@@ -316,7 +359,7 @@ function addClouds() {
     } else {
         nextY = clouds[0].y + rand.range(minCloudSpace, maxCloudSpace);
 
-        if (nextY + screenY > -300) {
+        if (nextY + screenY > -300 && nextY > 300) {
             clouds.unshift(
                 {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
             );
@@ -337,31 +380,40 @@ function updateClouds(dt) {
 
 function addObstacles() {
     var nextY = 100;
+
+    var keys = Object.keys(obstaclesTypes);
+    var typeKey = keys[keys.length * Math.random() << 0];
+    var type = obstaclesTypes[typeKey];
+    var ox = rand.range(-type.width, 480);
+    var vx = rand.range(type.speedRange.min, type.speedRange.max);
+    if (ox > 240) {
+        vx = -vx;
+    }
+    var newObstacle = {x: ox, y: nextY, w: type.width, h: type.height, vx: vx, type: typeKey};
+
     if (screenSpeed >= 0) {
         if (obstacles.length) {
             nextY = obstacles.slice(-1)[0].y - rand.range(minObstacleSpace, maxObstacleSpace);
         }
         if (nextY + screenY > -200) {
-            obstacles.push(
-                {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
-            );
+            newObstacle.y = nextY;
+            obstacles.push(newObstacle);
         }
     } else {
         nextY = obstacles[0].y + rand.range(minObstacleSpace, maxObstacleSpace);
 
         if (nextY + screenY > 300) {
-            obstacles.unshift(
-                {x: rand.range(-150, 480), y: nextY, w: rand.range(70, 200), h: rand.range(80, 120)}
-            );
+            newObstacle.y = nextY;
+            obstacles.unshift(newObstacle);
         }
     }
 }
 
 function updateObstacles(dt) {
     for (var index in obstacles) {
-        obstacles[index].x += 5 * dt;
+        obstacles[index].x += obstacles[index].vx * dt;
 
-        if (obstacles[index].x > 520 || screenY > Math.abs(obstacles[index].y) + 640 || screenY < Math.abs(obstacles[index].y) - 640) {
+        if (obstacles[index].x > obstacles[index].w + 480 || screenY > Math.abs(obstacles[index].y) + 640 || screenY < Math.abs(obstacles[index].y) - 640) {
             obstacles.splice(index, 1);
         }
     }
@@ -519,8 +571,20 @@ function drawUi() {
     ctx.textAlign = 'left';
     ctx.fillText(Math.floor(timeElapsed) + ' s', 10, canvas.height - 8);
 
+    // rocket possession
+    if (rocket.showPossession) {
+        ctx.fillStyle = white;
+        ctx.fillRect(188, 616, 104, 18);
+        ctx.fillStyle = black;
+        ctx.fillRect(190, 618, 100, 14);
+        ctx.fillStyle = white;
+        ctx.fillRect(190, 618, rocket.possession, 14);
+    }
+
+    // rocket.possession
+
     // rocket health
-    if (rocket.show_health) {
+    if (rocket.showHealth) {
         drawHeart(200, 615, 20, 20);
         drawHeart(230, 615, 20, 20);
         drawHeart(260, 615, 20, 20);
@@ -606,6 +670,51 @@ function drawClouds() {
         ctx.lineTo(clouds[index].w / 2, clouds[index].h / 1.5);
         ctx.lineTo(clouds[index].w + lastCircleRadius * 2 + 40, clouds[index].h);
         ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+function drawObstacles() {
+    for (var index in obstacles) {
+        ctx.save();
+        ctx.beginPath();
+
+        ctx.translate(obstacles[index].x, screenY + obstacles[index].y);
+        if (obstacles[index].vx < 0) {
+            ctx.scale(-1, 1);
+        }
+
+        // collision box
+        ctx.fillStyle = black;
+        ctx.fillRect(-obstacles[index].w / 2, -obstacles[index].h / 2, obstacles[index].w, obstacles[index].h);
+
+        ctx.fillStyle = white;
+
+        ctx.moveTo(-obstacles[index].w/2, -obstacles[index].h/2);
+        ctx.lineTo(obstacles[index].w/2-10, -obstacles[index].h/2+10);
+        ctx.lineTo(obstacles[index].w/2, obstacles[index].h/2);
+        ctx.lineTo(-obstacles[index].w/2+10, obstacles[index].h/2-10);
+        ctx.fill();
+
+        switch (obstacles[index].type) {
+            case 'kite':
+                ctx.moveTo(-obstacles[index].w/2, -obstacles[index].h/2);
+                ctx.lineTo(obstacles[index].w/2-10, -obstacles[index].h/2+10);
+                ctx.lineTo(obstacles[index].w/2, obstacles[index].h/2);
+                ctx.lineTo(-obstacles[index].w/2+10, obstacles[index].h/2-10);
+                ctx.fill();
+                break;
+            case 'bird':
+
+                break;
+            case 'plane':
+
+                break;
+            case 'satellite':
+
+                break;
+        }
 
         ctx.restore();
     }
