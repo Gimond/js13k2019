@@ -328,12 +328,18 @@ loop.start(function (dt) {
 });
 
 function detectCollisions(dt) {
+    ctx.fillStyle = "#ff0000";
+
     for (var index in obstacles) {
         var ob = obstacles[index];
-        if (player.pos.x + player.width/2 >= ob.x - ob.width/2 &&
-            player.pos.x - player.width/2 <= ob.x + ob.width/2 &&
-            player.pos.y + player.height/2 >= ob.y - ob.height/2 + screenY &&
-            player.pos.y - player.height/2 <= ob.y + ob.height/2 + screenY
+
+        // ctx.fillRect(player.pos.x, player.pos.y, player.width, player.height);
+        // ctx.fillRect(ob.x - ob.width/2, ob.y - ob.height/2 + screenY, ob.width, ob.height);
+ 
+        if (player.pos.x + player.width >= ob.x - ob.width/2 &&
+            player.pos.x <= ob.x + ob.width/2 &&
+            player.pos.y + player.height >= ob.y - ob.height/2 + screenY &&
+            player.pos.y <= ob.y + ob.height/2 + screenY
         ) {
             handleCollision(index, dt);
         }
@@ -437,14 +443,14 @@ function addObstacles() {
         if (obstacles.length) {
             nextY = obstacles.slice(-1)[0].y - rand.range(minObstacleSpace, maxObstacleSpace);
         }
-        if (nextY + screenY > -200) {
+        if (nextY - screenY > -200) {
             newObstacle.y = nextY;
             obstacles.push(newObstacle);
         }
     } else {
         nextY = obstacles[0].y + rand.range(minObstacleSpace, maxObstacleSpace);
 
-        if (nextY + screenY > 300) {
+        if (nextY + screenY > 0) {
             newObstacle.y = nextY;
             obstacles.unshift(newObstacle);
         }
@@ -455,9 +461,12 @@ function updateObstacles(dt) {
     for (var index in obstacles) {
         obstacles[index].x += obstacles[index].vx * dt;
 
-        if (obstacles[index].x > obstacles[index].width + 480 || screenY > Math.abs(obstacles[index].y) + 640 || screenY < Math.abs(obstacles[index].y) - 640) {
+        if (obstacles[index].x > obstacles[index].width + 480 || screenY > Math.abs(obstacles[index].y) + 1200 || screenY < Math.abs(obstacles[index].y) - 1200) {
             obstacles.splice(index, 1);
         }
+        // if (obstacles[index].x > obstacles[index].width + 480 || screenY > Math.abs(obstacles[index].y) + 640 || screenY < Math.abs(obstacles[index].y) - 640) {
+        //     obstacles.splice(index, 1);
+        // }
     }
 }
 
