@@ -443,7 +443,7 @@ function addObstacles() {
         if (obstacles.length) {
             nextY = obstacles.slice(-1)[0].y - rand.range(minObstacleSpace, maxObstacleSpace);
         }
-        if (nextY - screenY > -200) {
+        if (nextY + screenY > -200) {
             newObstacle.y = nextY;
             obstacles.push(newObstacle);
         }
