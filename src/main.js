@@ -51,12 +51,6 @@ var zoom = 1;
 generateStarrySky();
 
 // player
-var camera = {
-    pos: {x: 0, y: 0},
-    accel: {x: 0, y: 0},
-    target: {x: 0, y: 0},
-    drag: 0.3
-};
 var player = {
     pos: {x: 0, y: 0},
     accel: {x: 0, y: 0},
@@ -93,8 +87,7 @@ var rocket = {
     possession: 0, // 0 to 100, 100 meaning taking control of the rocket
     showPossession: false,
     health: 3,
-    showHealth: false,
-    explosionTimer: 0
+    showHealth: false
 };
 var clouds = [];
 var explosions = [];
@@ -188,6 +181,7 @@ loop.start(function (dt) {
         case "title":
             timeElapsed = 0;
             timeFlowing = false;
+            screenSpeed = 0;
             screenVelocity = 0;
 
             player = {
@@ -207,6 +201,13 @@ loop.start(function (dt) {
                 screenShake = 4;
                 screenShakeDamper = 1;
                 state = "liftoff";
+
+                addExplosion(240, 320, { 
+                    sizeRange: {min: 3, max: 5},
+                    gravity: 1,
+                    velocity: 150,
+                    color: white
+                });
             }
 
             drawTitle();
@@ -229,7 +230,6 @@ loop.start(function (dt) {
                     rocket.possession += 8;
                     screenShake = 3;
                     screenShakeDamper = 10;
-                    //state = "taking_control";
                 }
                 keySpaceDown = key.isDown(key.SPACE);
                 if (rocket.possession <= 0) {
@@ -239,6 +239,7 @@ loop.start(function (dt) {
                     state = "taking_control";
                 }
 
+                // @todo : comment
                 state = "taking_control";
             }
             screenY = screenY + screenSpeed * dt;
@@ -259,15 +260,6 @@ loop.start(function (dt) {
             if (screenY < 640) {
                 drawGround(dt);
             }
-            // particlesEmitter({
-            //     ctx: ctx,
-            //     canvas: canvas,
-            //     particleSize: 5,
-            //     angle: {min:0, max:360},
-            //     startingX: 20,
-            //     startingY: 20,
-            //     maxLife: 10,
-            // });
             break;
         case "taking_control":
             player.accel.x = 150;
@@ -276,6 +268,8 @@ loop.start(function (dt) {
             rocket.showHealth = true;
 
             addObstacles();
+            detectCollisions(dt);
+            updatePlayer(dt);
             screenY = screenY + screenSpeed * dt;
 
             if (rocket.health <= 0) {
@@ -283,8 +277,6 @@ loop.start(function (dt) {
                 screenVelocity = 0;
                 state = "falling";
             }
-
-            updatePlayer(dt);
 
             particlesEmitter(player.pos.x + player.width / 2, player.pos.y + player.height - 10, particlesSettings.rocket, dt);
             particlesEmitter(player.pos.x + player.width / 2, player.pos.y + player.height - 10, particlesSettings.rocket_smoke, dt);
@@ -300,14 +292,19 @@ loop.start(function (dt) {
             rocket.showHealth = false;
 
             addObstacles();
+            detectCollisions();
+            updatePlayer(dt);
             screenY = screenY + screenSpeed * dt;
 
             if (screenVelocity < 1) {
                 screenVelocity = screenVelocity + dt / 4;
             }
             if (screenSpeed > -screenMaxSpeedFalling) {
-                screenSpeed = screenSpeed - 350 * dt;
+                screenSpeed = screenSpeed - 400 * dt;
+            } else {
+                screenSpeed = -screenMaxSpeedFalling;
             }
+
             if (screenY <= 0) {
                 screenY = 0;
                 state = "fallen";
@@ -329,6 +326,47 @@ loop.start(function (dt) {
     ctx.restore();
     drawUi();
 });
+
+function detectCollisions(dt) {
+    for (var index in obstacles) {
+        var ob = obstacles[index];
+        if (player.pos.x + player.width/2 >= ob.x - ob.width/2 &&
+            player.pos.x - player.width/2 <= ob.x + ob.width/2 &&
+            player.pos.y + player.height/2 >= ob.y - ob.height/2 + screenY &&
+            player.pos.y - player.height/2 <= ob.y + ob.height/2 + screenY
+        ) {
+            handleCollision(index, dt);
+        }
+    }
+}
+
+function handleCollision(index, dt) {
+    // shake
+    screenShake = 3;
+    screenShakeDamper = 10;
+
+    // remove obstacle
+    obstacles.splice(index, 1);
+
+    // add explosion
+    addExplosion(obstacles[index].x, obstacles[index].y + screenY, {
+        sizeRange: {min: 3, max: 5},
+        gravity: 1,
+        velocity: 150,
+        color: white
+    });
+
+    if (state == "falling") {
+        // bounce
+        screenSpeed = 400;
+        screenVelocity = 0;
+    } else {
+        // slow rocket a bit
+        screenSpeed = screenSpeed*0.9;
+
+        rocket.health--;
+    }
+}
 
 function generateStarrySky() {
     caseh = 640 / 10;
@@ -357,7 +395,11 @@ function addClouds() {
             );
         }
     } else {
-        nextY = clouds[0].y + rand.range(minCloudSpace, maxCloudSpace);
+        if (clouds.length) {
+            nextY = clouds[0].y + rand.range(minCloudSpace, maxCloudSpace);
+        } else {
+            nextY = -100;
+        }
 
         if (nextY + screenY > -300 && nextY > 300) {
             clouds.unshift(
@@ -389,7 +431,7 @@ function addObstacles() {
     if (ox > 240) {
         vx = -vx;
     }
-    var newObstacle = {x: ox, y: nextY, w: type.width, h: type.height, vx: vx, type: typeKey};
+    var newObstacle = {x: ox, y: nextY, width: type.width, height: type.height, vx: vx, type: typeKey};
 
     if (screenSpeed >= 0) {
         if (obstacles.length) {
@@ -413,7 +455,7 @@ function updateObstacles(dt) {
     for (var index in obstacles) {
         obstacles[index].x += obstacles[index].vx * dt;
 
-        if (obstacles[index].x > obstacles[index].w + 480 || screenY > Math.abs(obstacles[index].y) + 640 || screenY < Math.abs(obstacles[index].y) - 640) {
+        if (obstacles[index].x > obstacles[index].width + 480 || screenY > Math.abs(obstacles[index].y) + 640 || screenY < Math.abs(obstacles[index].y) - 640) {
             obstacles.splice(index, 1);
         }
     }
@@ -575,7 +617,7 @@ function drawUi() {
     if (rocket.showPossession) {
         ctx.fillStyle = white;
         ctx.fillRect(188, 616, 104, 18);
-        ctx.fillStyle = black;
+        ctx.fillStyle = deepPurple;
         ctx.fillRect(190, 618, 100, 14);
         ctx.fillStyle = white;
         ctx.fillRect(190, 618, rocket.possession, 14);
@@ -585,9 +627,15 @@ function drawUi() {
 
     // rocket health
     if (rocket.showHealth) {
-        drawHeart(200, 615, 20, 20);
-        drawHeart(230, 615, 20, 20);
-        drawHeart(260, 615, 20, 20);
+        drawHeart(200, 615, 20, 20, white);
+        drawHeart(230, 615, 20, 20, deepPurple);
+        drawHeart(260, 615, 20, 20, deepPurple);
+        if (rocket.health > 1) {
+            drawHeart(230, 615, 20, 20, white);
+        }
+        if (rocket.health > 2) {
+            drawHeart(260, 615, 20, 20, white);
+        }
     }
 }
 
@@ -621,10 +669,11 @@ function drawCircle(x, y, radius, color) {
     ctx.fill();
 }
 
-function drawHeart(x, y, w, h) {
+function drawHeart(x, y, w, h, color) {
     ctx.save();
     ctx.beginPath();
     ctx.translate(x, y);
+    ctx.fillStyle = color;
 
     ctx.moveTo(w / 2, h / 5);
     ctx.bezierCurveTo(w / 2, h / 5.88, w / 2.2, h / 20, w / 3.67, h / 20);
@@ -687,22 +736,16 @@ function drawObstacles() {
 
         // collision box
         ctx.fillStyle = black;
-        ctx.fillRect(-obstacles[index].w / 2, -obstacles[index].h / 2, obstacles[index].w, obstacles[index].h);
+        ctx.fillRect(-obstacles[index].width / 2, -obstacles[index].height / 2, obstacles[index].width, obstacles[index].height);
 
         ctx.fillStyle = white;
 
-        ctx.moveTo(-obstacles[index].w/2, -obstacles[index].h/2);
-        ctx.lineTo(obstacles[index].w/2-10, -obstacles[index].h/2+10);
-        ctx.lineTo(obstacles[index].w/2, obstacles[index].h/2);
-        ctx.lineTo(-obstacles[index].w/2+10, obstacles[index].h/2-10);
-        ctx.fill();
-
         switch (obstacles[index].type) {
             case 'kite':
-                ctx.moveTo(-obstacles[index].w/2, -obstacles[index].h/2);
-                ctx.lineTo(obstacles[index].w/2-10, -obstacles[index].h/2+10);
-                ctx.lineTo(obstacles[index].w/2, obstacles[index].h/2);
-                ctx.lineTo(-obstacles[index].w/2+10, obstacles[index].h/2-10);
+                ctx.moveTo(-obstacles[index].width/2, -obstacles[index].height/2);
+                ctx.lineTo(obstacles[index].width/2-10, -obstacles[index].height/2+10);
+                ctx.lineTo(obstacles[index].width/2, obstacles[index].height/2);
+                ctx.lineTo(-obstacles[index].width/2+10, obstacles[index].height/2-10);
                 ctx.fill();
                 break;
             case 'bird':
@@ -712,6 +755,9 @@ function drawObstacles() {
 
                 break;
             case 'satellite':
+
+                break;
+            case 'meteor':
 
                 break;
         }
@@ -784,31 +830,62 @@ function particlesEmitter(x, y, settings, dt) {
         angle: {min: 0, max: 360}
     };
     // merge settings with default
-    this.settings = Object.assign(settings_default, settings);
+    settings = Object.assign(settings_default, settings);
 
-    for (var i = 0; i < this.settings.density; i++) {
+    for (var i = 0; i < settings.density; i++) {
         if (rand.float() > 0.97) {
             // Introducing a random chance of creating a particle
             // corresponding to an chance of 1 per second,
             // per "density" value
-            var angle = toRadians(rand.range(this.settings.angle.min, this.settings.angle.max));
+            var angle = toRadians(rand.range(settings.angle.min, settings.angle.max));
             var particleSettings = {
                 // Establish starting positions and velocities
-                size: rand.range(this.settings.sizeRange.min, this.settings.sizeRange.max),
-                x: this.settings.startingX,
-                y: this.settings.startingY,
-                vx: this.settings.velocity * dt * Math.cos(angle),
-                vy: this.settings.velocity * dt * Math.sin(angle),
-                maxLife: rand.range(this.settings.maxLifeRange.min, this.settings.maxLifeRange.max),
+                size: rand.range(settings.sizeRange.min, settings.sizeRange.max),
+                x: settings.startingX,
+                y: settings.startingY,
+                vx: settings.velocity * dt * Math.cos(angle),
+                vy: settings.velocity * dt * Math.sin(angle),
+                maxLife: rand.range(settings.maxLifeRange.min, settings.maxLifeRange.max),
                 life: 0,
             };
-            if (this.settings.front) {
-                particles.push(Object.assign(this.settings, particleSettings));
+            if (settings.front) {
+                particles.push(Object.assign(settings, particleSettings));
             } else {
-                particles.unshift(Object.assign(this.settings, particleSettings));
+                particles.unshift(Object.assign(settings, particleSettings));
             }
         }
     }
+}
+
+function addExplosion(x, y, settings, dt) {
+    var settings_default = {
+        startingX: x,
+        startingY: y,
+        sizeRange: {min: 3, max: 10},
+        gravity: 0.5,
+        maxLifeRange: {min: 10, max: 20},
+        velocity: 5,
+        color: white
+    };
+    // merge settings with default
+    settings = Object.assign(settings_default, settings);
+
+    var angle = 0;
+    while (angle < 360) {
+        var particleSettings = {
+            size: rand.range(settings.sizeRange.min, settings.sizeRange.max),
+            x: settings.startingX,
+            y: settings.startingY,
+            vx: settings.velocity * dt * Math.cos(toRadians(angle)),
+            vy: settings.velocity * dt * Math.sin(toRadians(angle)),
+            maxLife: rand.range(settings.maxLifeRange.min, settings.maxLifeRange.max),
+            life: 0,
+        };
+        particles.push(Object.assign(settings, particleSettings));
+
+        angle+= rand.range(15, 30);
+    }
+    console.log(particles);
 }
 
 function toRadians(angle) {
