@@ -584,8 +584,19 @@ function drawGround(dt) {
 }
 
 function drawFarm(dt) {
-    ctx.fillStyle = darkerPurple;
+    // text
+    canvas.style.letterSpacing = '-7px'; 
+    ctx.fillStyle = darkPurple;
+    ctx.font = 'bold 120px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText("THE CAT", canvas.width / 2 - 2, screenY + 240);
+    ctx.font = 'bold 165px sans-serif';
+    ctx.fillText("CAME", canvas.width / 2 - 7, screenY + 367);
+    ctx.font = 'bold 165px sans-serif';
+    ctx.fillText("BACK", canvas.width / 2 - 7, screenY + 495);
+
     // sea
+    ctx.fillStyle = darkerPurple;
     if (waveAmplitude >= 2) {
         waveAmplitudeModifier = -dt * 5;
     }
@@ -596,11 +607,21 @@ function drawFarm(dt) {
     ctx.beginPath();
     ctx.moveTo(0, screenY + 490);
     drawWave({x: 0, y: screenY + 490}, {x: 150, y: screenY + 490}, 8, waveAmplitude, 4);
+
     // ground
+    ctx.fillStyle = darkerPurple;
     ctx.lineTo(160, screenY + 480);
     ctx.lineTo(480, screenY + 480);
     ctx.lineTo(480, screenY + 640);
     ctx.lineTo(0, screenY + 640);
+    ctx.fill();
+
+    // farm
+    ctx.moveTo(200, screenY + 480);
+    ctx.lineTo(200, screenY + 420);
+    ctx.lineTo(250, screenY + 380);
+    ctx.lineTo(300, screenY + 420);
+    ctx.lineTo(300, screenY + 480);
     ctx.fill();
 }
 
