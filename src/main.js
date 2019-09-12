@@ -72,8 +72,8 @@ var obstaclesTypes = {
         speedRange: {min: 15, max: 20}
     },
     plane: {
-        width: 30,
-        height: 15,
+        width: 40,
+        height: 30,
         speedRange: {min: 15, max: 20}
     },
     satellite: {
@@ -442,6 +442,8 @@ function addObstacles() {
     if (screenSpeed >= 0) {
         if (obstacles.length) {
             nextY = obstacles.slice(-1)[0].y - rand.range(minObstacleSpace, maxObstacleSpace);
+        } else {
+            nextY = -640;
         }
         if (nextY + screenY > -200) {
             newObstacle.y = nextY;
@@ -449,6 +451,8 @@ function addObstacles() {
         }
     } else {
         nextY = obstacles[0].y + rand.range(minObstacleSpace, maxObstacleSpace);
+        console.log(obstacles[0].y);
+        debugger;
 
         if (nextY + screenY > 0) {
             newObstacle.y = nextY;
