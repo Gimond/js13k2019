@@ -10,8 +10,7 @@
     "test": "echo \"Error: no test specified\" && exit 0",
     "zip": "rm build.zip & cd build & \"C:\\Program Files\\7-Zip\\7z.exe\" a ../build.zip",
     "lint": "eslint ./src --fix",
-    "package": "npm run clean && npm run build && npm run zip",
-    "prepush": "npm run lint"
+    "package": "npm run clean && npm run build && npm run zip"
   },
   "repository": {
     "type": "git",
